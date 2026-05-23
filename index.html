@@ -25,6 +25,10 @@
       <section class="panel">
         <div class="hud">
           <div class="stat">
+            <span class="label">Level</span>
+            <strong id="level">1 / 4</strong>
+          </div>
+          <div class="stat">
             <span class="label">Dorayaki</span>
             <strong id="score">0 / 0</strong>
           </div>
@@ -35,6 +39,10 @@
           <div class="stat">
             <span class="label">Status</span>
             <strong id="status">Ready</strong>
+          </div>
+          <div class="stat">
+            <span class="label">Boss</span>
+            <strong id="bossHealth">--</strong>
           </div>
         </div>
 
@@ -48,6 +56,10 @@
         <div class="footer-note" id="message">
           Press any movement key to begin.
         </div>
+
+        <button id="playAgainBtn" class="play-again-btn" type="button" hidden>
+          Play Again
+        </button>
 
         <div class="mobile-controls" aria-label="Touch controls">
           <button class="control-btn control-btn-wide" type="button" data-touch="left" aria-label="Move left">

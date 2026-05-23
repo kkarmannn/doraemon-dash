@@ -1,12 +1,14 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const levelEl = document.getElementById("level");
 const scoreEl = document.getElementById("score");
 const livesEl = document.getElementById("lives");
 const statusEl = document.getElementById("status");
+const bossHealthEl = document.getElementById("bossHealth");
 const messageEl = document.getElementById("message");
+const playAgainBtn = document.getElementById("playAgainBtn");
 const touchButtons = Array.from(document.querySelectorAll("[data-touch]"));
 
-const WORLD_WIDTH = 3200;
 const GROUND_Y = 456;
 const GRAVITY = 0.72;
 const MOVE_SPEED = 4.2;
@@ -24,6 +26,329 @@ let musicTimerId = null;
 let lastJumpSoundAt = 0;
 let activeMusicStep = 0;
 
+function createBoss(config) {
+  return {
+    x: config.x,
+    baseY: config.baseY,
+    y: config.baseY,
+    width: config.width,
+    height: config.height,
+    vy: 0,
+    health: config.health,
+    maxHealth: config.health,
+    minJumpDelay: config.minJumpDelay,
+    maxJumpDelay: config.maxJumpDelay,
+    jumpStrength: config.jumpStrength,
+    nextJumpAt: 0,
+    hitFlashUntil: 0,
+  };
+}
+
+function createProjectile(x, y, direction = 1) {
+  return {
+    x,
+    y,
+    width: 20,
+    height: 14,
+    vx: 8.2 * direction,
+    active: true,
+  };
+}
+
+function createPlayer() {
+  return {
+    x: 70,
+    y: 380,
+    width: 54,
+    height: 64,
+    vx: 0,
+    vy: 0,
+    onGround: false,
+    facing: 1,
+  };
+}
+
+function withCollectibles(points) {
+  return points.map(([x, y]) => ({
+    x,
+    y,
+    width: 28,
+    height: 28,
+    collected: false,
+  }));
+}
+
+function withEnemies(items) {
+  return items.map(([x, y, minX, maxX, speed, dir]) => ({
+    x,
+    y,
+    width: 38,
+    height: 28,
+    minX,
+    maxX,
+    speed,
+    dir,
+  }));
+}
+
+const LEVELS = [
+  {
+    name: "Gadget Garden",
+    intro: "Collect all the dorayaki and reach the yellow door.",
+    timeLimit: 90,
+    width: 3200,
+    theme: {
+      skyTop: "#8be1ff",
+      skyBottom: "#fff2b8",
+      sun: "#ffe37b",
+      hillA: "#8fd694",
+      hillB: "#72c27a",
+      cloud: "rgba(255,255,255,0.88)",
+      mountain: null,
+      stars: false,
+    },
+    platforms: [
+      { x: 0, y: 500, width: 3200, height: 80, color: "#7fbf63" },
+      { x: 240, y: 410, width: 170, height: 18, color: "#f4a261" },
+      { x: 500, y: 360, width: 150, height: 18, color: "#f4a261" },
+      { x: 740, y: 315, width: 140, height: 18, color: "#f4a261" },
+      { x: 980, y: 395, width: 190, height: 18, color: "#e9c46a" },
+      { x: 1250, y: 350, width: 210, height: 18, color: "#f4a261" },
+      { x: 1520, y: 290, width: 140, height: 18, color: "#e76f51" },
+      { x: 1710, y: 240, width: 130, height: 18, color: "#f4a261" },
+      { x: 1940, y: 330, width: 220, height: 18, color: "#e9c46a" },
+      { x: 2260, y: 385, width: 170, height: 18, color: "#f4a261" },
+      { x: 2510, y: 340, width: 160, height: 18, color: "#f4a261" },
+      { x: 2790, y: 280, width: 200, height: 18, color: "#e76f51" },
+    ],
+    collectibles: withCollectibles([
+      [295, 368],
+      [557, 318],
+      [795, 273],
+      [1045, 353],
+      [1335, 308],
+      [1578, 248],
+      [1760, 198],
+      [2035, 288],
+      [2315, 343],
+      [2868, 238],
+    ]),
+    enemies: withEnemies([
+      [865, 472, 840, 1030, 1.3, 1],
+      [1460, 472, 1380, 1580, 1.6, -1],
+      [2140, 302, 1980, 2115, 1.1, -1],
+      [2670, 472, 2580, 2800, 1.7, 1],
+    ]),
+    hazards: [
+      { x: 680, y: 500, width: 64, height: 26 },
+      { x: 1180, y: 500, width: 52, height: 26 },
+      { x: 2445, y: 500, width: 58, height: 26 },
+    ],
+    goal: { x: 3050, y: 410, width: 56, height: 90 },
+  },
+  {
+    name: "Sky Rail Sprint",
+    intro: "Level 2: a broken bridge sprint with long gaps, stacked spikes, and less recovery space.",
+    timeLimit: 78,
+    width: 3500,
+    theme: {
+      skyTop: "#6cc9ff",
+      skyBottom: "#f7c9ff",
+      sun: "#fff1a8",
+      hillA: "#9adf8c",
+      hillB: "#62b96f",
+      cloud: "rgba(255,255,255,0.85)",
+      mountain: "#93b7ef",
+      stars: false,
+    },
+    platforms: [
+      { x: 0, y: 500, width: 3500, height: 80, color: "#6fb25a" },
+      { x: 180, y: 430, width: 110, height: 18, color: "#f4a261" },
+      { x: 360, y: 385, width: 90, height: 18, color: "#e9c46a" },
+      { x: 520, y: 330, width: 85, height: 18, color: "#f4a261" },
+      { x: 680, y: 275, width: 80, height: 18, color: "#e76f51" },
+      { x: 860, y: 345, width: 130, height: 18, color: "#f4a261" },
+      { x: 1060, y: 295, width: 88, height: 18, color: "#e9c46a" },
+      { x: 1225, y: 240, width: 82, height: 18, color: "#f4a261" },
+      { x: 1400, y: 370, width: 105, height: 18, color: "#e76f51" },
+      { x: 1570, y: 320, width: 90, height: 18, color: "#f4a261" },
+      { x: 1750, y: 265, width: 84, height: 18, color: "#e9c46a" },
+      { x: 1940, y: 215, width: 80, height: 18, color: "#f4a261" },
+      { x: 2145, y: 365, width: 120, height: 18, color: "#e76f51" },
+      { x: 2350, y: 310, width: 92, height: 18, color: "#f4a261" },
+      { x: 2535, y: 255, width: 86, height: 18, color: "#e9c46a" },
+      { x: 2725, y: 205, width: 78, height: 18, color: "#f4a261" },
+      { x: 2920, y: 355, width: 118, height: 18, color: "#e76f51" },
+      { x: 3135, y: 300, width: 95, height: 18, color: "#f4a261" },
+      { x: 3310, y: 245, width: 100, height: 18, color: "#e9c46a" },
+    ],
+    collectibles: withCollectibles([
+      [216, 388],
+      [390, 343],
+      [548, 288],
+      [705, 233],
+      [905, 303],
+      [1089, 253],
+      [1248, 198],
+      [1436, 328],
+      [1780, 223],
+      [1967, 173],
+      [2380, 268],
+      [3346, 203],
+    ]),
+    enemies: withEnemies([
+      [470, 472, 410, 640, 1.65, 1],
+      [980, 472, 900, 1120, 1.95, -1],
+      [1510, 472, 1410, 1670, 1.9, 1],
+      [2240, 337, 2160, 2325, 1.45, -1],
+      [3050, 472, 2940, 3180, 2.05, 1],
+    ]),
+    hazards: [
+      { x: 300, y: 500, width: 48, height: 26 },
+      { x: 790, y: 500, width: 92, height: 26 },
+      { x: 1160, y: 500, width: 52, height: 26 },
+      { x: 1670, y: 500, width: 96, height: 26 },
+      { x: 2060, y: 500, width: 56, height: 26 },
+      { x: 2830, y: 500, width: 100, height: 26 },
+      { x: 3235, y: 500, width: 64, height: 26 },
+    ],
+    goal: { x: 3420, y: 410, width: 56, height: 90 },
+  },
+  {
+    name: "Moonlight Machine City",
+    intro: "Final level: a gauntlet of tight landings, layered traps, and almost no breathing room.",
+    timeLimit: 66,
+    width: 3720,
+    theme: {
+      skyTop: "#18264f",
+      skyBottom: "#4b4d8d",
+      sun: "#f1f1ff",
+      hillA: "#4f6f88",
+      hillB: "#36556d",
+      cloud: "rgba(225,232,255,0.58)",
+      mountain: "#2b4169",
+      stars: true,
+    },
+    platforms: [
+      { x: 0, y: 500, width: 3720, height: 80, color: "#537e61" },
+      { x: 160, y: 420, width: 100, height: 18, color: "#b08968" },
+      { x: 330, y: 360, width: 80, height: 18, color: "#ddb892" },
+      { x: 470, y: 300, width: 78, height: 18, color: "#b56576" },
+      { x: 625, y: 240, width: 76, height: 18, color: "#ddb892" },
+      { x: 810, y: 340, width: 120, height: 18, color: "#b08968" },
+      { x: 980, y: 285, width: 80, height: 18, color: "#b56576" },
+      { x: 1135, y: 230, width: 76, height: 18, color: "#ddb892" },
+      { x: 1315, y: 390, width: 105, height: 18, color: "#b08968" },
+      { x: 1485, y: 330, width: 78, height: 18, color: "#ddb892" },
+      { x: 1640, y: 270, width: 76, height: 18, color: "#b56576" },
+      { x: 1810, y: 215, width: 72, height: 18, color: "#ddb892" },
+      { x: 2015, y: 365, width: 108, height: 18, color: "#b08968" },
+      { x: 2190, y: 305, width: 80, height: 18, color: "#ddb892" },
+      { x: 2345, y: 245, width: 76, height: 18, color: "#b56576" },
+      { x: 2535, y: 190, width: 74, height: 18, color: "#ddb892" },
+      { x: 2745, y: 350, width: 112, height: 18, color: "#b08968" },
+      { x: 2930, y: 290, width: 82, height: 18, color: "#ddb892" },
+      { x: 3090, y: 230, width: 76, height: 18, color: "#b56576" },
+      { x: 3285, y: 305, width: 128, height: 18, color: "#ddb892" },
+      { x: 3470, y: 245, width: 84, height: 18, color: "#b08968" },
+    ],
+    collectibles: withCollectibles([
+      [192, 378],
+      [353, 318],
+      [492, 258],
+      [647, 198],
+      [850, 298],
+      [1004, 243],
+      [1156, 188],
+      [1342, 348],
+      [1830, 173],
+      [2040, 323],
+      [2214, 263],
+      [2368, 203],
+      [2560, 148],
+      [2770, 308],
+      [3308, 263],
+      [3495, 203],
+    ]),
+    enemies: withEnemies([
+      [420, 472, 310, 560, 1.75, 1],
+      [910, 472, 790, 1035, 2, -1],
+      [1435, 472, 1320, 1585, 2.05, 1],
+      [2128, 337, 2030, 2195, 1.55, -1],
+      [2870, 472, 2750, 3010, 2.1, 1],
+      [3380, 472, 3295, 3520, 2.2, -1],
+    ]),
+    hazards: [
+      { x: 275, y: 500, width: 42, height: 26 },
+      { x: 565, y: 500, width: 56, height: 26 },
+      { x: 740, y: 500, width: 58, height: 26 },
+      { x: 1218, y: 500, width: 86, height: 26 },
+      { x: 1725, y: 500, width: 84, height: 26 },
+      { x: 2440, y: 500, width: 92, height: 26 },
+      { x: 3175, y: 500, width: 88, height: 26 },
+      { x: 3560, y: 500, width: 60, height: 26 },
+    ],
+    goal: { x: 3635, y: 410, width: 56, height: 90 },
+  },
+  {
+    name: "Rat King Showdown",
+    intro: "Boss level: survive the giant rat and let the dorayaki cannons do the firing for you.",
+    timeLimit: 72,
+    mode: "boss",
+    width: 2200,
+    theme: {
+      skyTop: "#2d1839",
+      skyBottom: "#7c3f58",
+      sun: "#ffd6a5",
+      hillA: "#7a5c61",
+      hillB: "#5e434a",
+      cloud: "rgba(255,228,237,0.38)",
+      mountain: "#45253d",
+      stars: true,
+    },
+    platforms: [
+      { x: 0, y: 500, width: 2200, height: 80, color: "#6c7d5f" },
+      { x: 240, y: 405, width: 220, height: 18, color: "#e9c46a" },
+      { x: 640, y: 360, width: 180, height: 18, color: "#f4a261" },
+      { x: 990, y: 405, width: 220, height: 18, color: "#e76f51" },
+      { x: 1460, y: 360, width: 190, height: 18, color: "#f4a261" },
+    ],
+    collectibles: [],
+    enemies: [],
+    hazards: [],
+    goal: null,
+    boss: {
+      x: 1785,
+      baseY: 338,
+      width: 128,
+      height: 110,
+      health: 12,
+      minJumpDelay: 650,
+      maxJumpDelay: 1400,
+      jumpStrength: 15.5,
+    },
+    autoFireInterval: 520,
+  },
+];
+
+const game = {
+  levelIndex: 0,
+  level: structuredClone(LEVELS[0]),
+  player: createPlayer(),
+  cameraX: 0,
+  score: 0,
+  totalCollectibles: LEVELS[0].collectibles.length,
+  lives: 3,
+  timeLeft: LEVEL_TIME,
+  state: "ready",
+  lastFrame: 0,
+  invulnerableUntil: 0,
+  boss: null,
+  projectiles: [],
+  nextAutoShotAt: 0,
+  cutscene: null,
+};
+
 function rectsOverlap(a, b) {
   return (
     a.x < b.x + b.width &&
@@ -35,6 +360,14 @@ function rectsOverlap(a, b) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function currentLevelTemplate() {
+  return LEVELS[game.levelIndex];
+}
+
+function currentWorldWidth() {
+  return game.level.width;
 }
 
 function ensureAudio() {
@@ -124,6 +457,27 @@ function playWinSound() {
   });
 }
 
+function playLevelClearSound() {
+  const notes = [392, 523.25, 659.25];
+  notes.forEach((note, index) => {
+    playTone({
+      frequency: note,
+      duration: 0.1,
+      type: "square",
+      volume: 0.038,
+      startTime: index * 0.09,
+    });
+  });
+}
+
+function playShootSound() {
+  playTone({ frequency: 460, endFrequency: 620, duration: 0.06, type: "square", volume: 0.032 });
+}
+
+function playBossHitSound() {
+  playTone({ frequency: 250, endFrequency: 160, duration: 0.08, type: "sawtooth", volume: 0.045 });
+}
+
 function playStartSound() {
   playTone({ frequency: 392, duration: 0.07, volume: 0.03 });
   playTone({ frequency: 523.25, duration: 0.09, volume: 0.04, startTime: 0.07 });
@@ -173,119 +527,74 @@ function fillRoundedRect(x, y, width, height, radius, color) {
   ctx.fill();
 }
 
-function createLevel() {
-  const platforms = [
-    { x: 0, y: 500, width: WORLD_WIDTH, height: 80, color: "#7fbf63" },
-    { x: 240, y: 410, width: 170, height: 18, color: "#f4a261" },
-    { x: 500, y: 360, width: 150, height: 18, color: "#f4a261" },
-    { x: 740, y: 315, width: 140, height: 18, color: "#f4a261" },
-    { x: 980, y: 395, width: 190, height: 18, color: "#e9c46a" },
-    { x: 1250, y: 350, width: 210, height: 18, color: "#f4a261" },
-    { x: 1520, y: 290, width: 140, height: 18, color: "#e76f51" },
-    { x: 1710, y: 240, width: 130, height: 18, color: "#f4a261" },
-    { x: 1940, y: 330, width: 220, height: 18, color: "#e9c46a" },
-    { x: 2260, y: 385, width: 170, height: 18, color: "#f4a261" },
-    { x: 2510, y: 340, width: 160, height: 18, color: "#f4a261" },
-    { x: 2790, y: 280, width: 200, height: 18, color: "#e76f51" },
-  ];
-
-  const collectibles = [
-    { x: 295, y: 368, width: 28, height: 28, collected: false },
-    { x: 557, y: 318, width: 28, height: 28, collected: false },
-    { x: 795, y: 273, width: 28, height: 28, collected: false },
-    { x: 1045, y: 353, width: 28, height: 28, collected: false },
-    { x: 1335, y: 308, width: 28, height: 28, collected: false },
-    { x: 1578, y: 248, width: 28, height: 28, collected: false },
-    { x: 1760, y: 198, width: 28, height: 28, collected: false },
-    { x: 2035, y: 288, width: 28, height: 28, collected: false },
-    { x: 2315, y: 343, width: 28, height: 28, collected: false },
-    { x: 2868, y: 238, width: 28, height: 28, collected: false },
-  ];
-
-  const enemies = [
-    { x: 865, y: 472, width: 38, height: 28, minX: 840, maxX: 1030, speed: 1.3, dir: 1 },
-    { x: 1460, y: 472, width: 38, height: 28, minX: 1380, maxX: 1580, speed: 1.6, dir: -1 },
-    { x: 2140, y: 302, width: 38, height: 28, minX: 1980, maxX: 2115, speed: 1.1, dir: -1 },
-    { x: 2670, y: 472, width: 38, height: 28, minX: 2580, maxX: 2800, speed: 1.7, dir: 1 },
-  ];
-
-  const hazards = [
-    { x: 680, y: 500, width: 64, height: 26 },
-    { x: 1180, y: 500, width: 52, height: 26 },
-    { x: 2445, y: 500, width: 58, height: 26 },
-  ];
-
-  const goal = { x: 3050, y: 410, width: 56, height: 90 };
-
-  return { platforms, collectibles, enemies, hazards, goal };
-}
-
-function createPlayer() {
-  return {
-    x: 70,
-    y: 380,
-    width: 54,
-    height: 64,
-    vx: 0,
-    vy: 0,
-    onGround: false,
-    facing: 1,
-  };
-}
-
-const game = {
-  level: createLevel(),
-  player: createPlayer(),
-  cameraX: 0,
-  score: 0,
-  totalCollectibles: 10,
-  lives: 3,
-  timeLeft: LEVEL_TIME,
-  state: "ready",
-  startedAt: 0,
-  lastFrame: 0,
-  invulnerableUntil: 0,
-};
-
-function resetRound(keepScore = true) {
+function loadLevel(index) {
+  game.levelIndex = index;
+  game.level = structuredClone(LEVELS[index]);
+  game.totalCollectibles = game.level.collectibles.length;
+  game.score = 0;
   game.player = createPlayer();
   game.cameraX = 0;
-  game.state = "running";
-  game.lastFrame = 0;
-  game.startedAt = performance.now();
-  game.timeLeft = LEVEL_TIME;
+  game.timeLeft = game.level.timeLimit || LEVEL_TIME;
   game.invulnerableUntil = 0;
+  game.lastFrame = 0;
+  game.projectiles = [];
+  game.nextAutoShotAt = performance.now() + 500;
+  game.boss = game.level.boss ? createBoss(game.level.boss) : null;
+  game.cutscene = null;
+}
 
-  if (!keepScore) {
-    game.level = createLevel();
-    game.score = 0;
-  }
-
+function startLevel() {
+  game.state = "running";
   startMusicLoop();
-  messageEl.textContent = "Collect all the dorayaki and reach the yellow door.";
+  messageEl.textContent = currentLevelTemplate().intro;
 }
 
 function restartGame() {
   stopMusic();
-  game.level = createLevel();
-  game.player = createPlayer();
-  game.cameraX = 0;
-  game.score = 0;
+  loadLevel(0);
   game.lives = 3;
-  game.timeLeft = LEVEL_TIME;
   game.state = "ready";
-  game.startedAt = 0;
-  game.lastFrame = 0;
-  game.invulnerableUntil = 0;
-  messageEl.textContent = "Press any movement key to begin.";
+  playAgainBtn.hidden = true;
+  messageEl.textContent = "Press any movement key to begin Level 1.";
+}
+
+function startVictoryCutscene() {
+  game.state = "won";
+  game.cutscene = {
+    startedAt: performance.now(),
+    confetti: Array.from({ length: 36 }, (_, index) => ({
+      x: (index * 31) % canvas.width,
+      y: -((index * 27) % 220),
+      speedY: 1.8 + (index % 5) * 0.35,
+      drift: ((index % 6) - 3) * 0.22,
+      size: 7 + (index % 4),
+      color: ["#ffd166", "#ef476f", "#06d6a0", "#118ab2", "#f78c6b"][index % 5],
+    })),
+  };
+  playAgainBtn.hidden = false;
+  messageEl.textContent = "Congratulations. You beat Doraemon Dash and sent the Rat King flying.";
+  playWinSound();
 }
 
 function markStarted() {
   if (game.state === "ready") {
     ensureAudio();
     playStartSound();
-    resetRound(false);
+    startLevel();
   }
+}
+
+function prepareNextLevel() {
+  if (game.levelIndex >= LEVELS.length - 1) {
+    stopMusic();
+    startVictoryCutscene();
+    return;
+  }
+
+  playLevelClearSound();
+  loadLevel(game.levelIndex + 1);
+  game.state = "ready";
+  messageEl.textContent = `Level ${game.levelIndex + 1} cleared. Press move or jump for Level ${game.levelIndex + 2}.`;
 }
 
 function loseLife(reason) {
@@ -299,7 +608,7 @@ function loseLife(reason) {
   if (game.lives <= 0) {
     stopMusic();
     game.state = "lost";
-    statusEl.textContent = "Game Over";
+    playAgainBtn.hidden = false;
     messageEl.textContent = reason + " Press R to play again.";
     playLoseSound();
     return;
@@ -309,13 +618,6 @@ function loseLife(reason) {
   game.player = createPlayer();
   game.cameraX = 0;
   messageEl.textContent = reason + " You bounced back. Keep going.";
-}
-
-function winGame() {
-  stopMusic();
-  game.state = "won";
-  messageEl.textContent = "You made it to the door. Doraemon Dash complete!";
-  playWinSound();
 }
 
 function updatePlayer() {
@@ -340,7 +642,7 @@ function updatePlayer() {
 
   player.vy += GRAVITY;
   player.x += player.vx;
-  player.x = clamp(player.x, 0, WORLD_WIDTH - player.width);
+  player.x = clamp(player.x, 0, currentWorldWidth() - player.width);
 
   const previousY = player.y;
   player.y += player.vy;
@@ -369,18 +671,93 @@ function updateEnemies() {
   }
 }
 
+function autoFireProjectiles(now) {
+  if (game.level.mode !== "boss" || game.state !== "running") return;
+  if (now < game.nextAutoShotAt) return;
+
+  const direction = game.boss && game.boss.x >= game.player.x ? 1 : -1;
+  const projectileX = direction === 1 ? game.player.x + game.player.width - 6 : game.player.x - 14;
+  const projectileY = game.player.y + 28;
+
+  game.projectiles.push(createProjectile(projectileX, projectileY, direction));
+  game.nextAutoShotAt = now + (game.level.autoFireInterval || 520);
+  playShootSound();
+}
+
+function updateProjectiles() {
+  for (const projectile of game.projectiles) {
+    projectile.x += projectile.vx;
+    if (projectile.x < -80 || projectile.x > currentWorldWidth() + 80) {
+      projectile.active = false;
+    }
+  }
+
+  game.projectiles = game.projectiles.filter((projectile) => projectile.active);
+}
+
+function updateBoss(now) {
+  if (!game.boss) return;
+
+  if (now >= game.boss.nextJumpAt && game.boss.y >= game.boss.baseY) {
+    game.boss.vy = -game.boss.jumpStrength;
+    game.boss.nextJumpAt =
+      now +
+      game.boss.minJumpDelay +
+      Math.random() * (game.boss.maxJumpDelay - game.boss.minJumpDelay);
+  }
+
+  game.boss.vy += GRAVITY * 0.95;
+  game.boss.y += game.boss.vy;
+  if (game.boss.y >= game.boss.baseY) {
+    game.boss.y = game.boss.baseY;
+    game.boss.vy = 0;
+  }
+
+  const bossRect = {
+    x: game.boss.x,
+    y: game.boss.y,
+    width: game.boss.width,
+    height: game.boss.height,
+  };
+
+  if (rectsOverlap(game.player, bossRect)) {
+    loseLife("The giant rat body-slammed you.");
+  }
+
+  for (const projectile of game.projectiles) {
+    if (!projectile.active) continue;
+    if (rectsOverlap(projectile, bossRect)) {
+      projectile.active = false;
+      game.boss.health -= 1;
+      game.boss.hitFlashUntil = now + 120;
+      playBossHitSound();
+      messageEl.textContent = `Boss hit. Rat King health ${Math.max(game.boss.health, 0)}/${game.boss.maxHealth}.`;
+
+      if (game.boss.health <= 0) {
+        game.boss.health = 0;
+        prepareNextLevel();
+        return;
+      }
+    }
+  }
+}
+
 function handleCollectibles() {
+  if (game.level.mode === "boss") return;
+
   for (const item of game.level.collectibles) {
     if (!item.collected && rectsOverlap(game.player, item)) {
       item.collected = true;
       game.score += 1;
       playCollectSound();
-      messageEl.textContent = "Nice. Dorayaki collected.";
+      messageEl.textContent = `${currentLevelTemplate().name}: dorayaki ${game.score}/${game.totalCollectibles}.`;
     }
   }
 }
 
 function handleHazards() {
+  if (game.level.mode === "boss") return;
+
   for (const spike of game.level.hazards) {
     if (rectsOverlap(game.player, spike)) {
       loseLife("Those spikes were not friendly.");
@@ -409,12 +786,13 @@ function handleHazards() {
 }
 
 function updateGoal() {
-  if (rectsOverlap(game.player, game.level.goal)) {
-    if (game.score === game.totalCollectibles) {
-      winGame();
-    } else {
-      messageEl.textContent = "The door opens after you collect every dorayaki.";
-    }
+  if (game.level.mode === "boss") return;
+  if (!rectsOverlap(game.player, game.level.goal)) return;
+
+  if (game.score === game.totalCollectibles) {
+    prepareNextLevel();
+  } else {
+    messageEl.textContent = "The door opens after you collect every dorayaki in this level.";
   }
 }
 
@@ -422,12 +800,12 @@ function updateCamera() {
   game.cameraX = clamp(
     game.player.x - canvas.width * 0.35,
     0,
-    WORLD_WIDTH - canvas.width
+    currentWorldWidth() - canvas.width
   );
 }
 
-function drawCloud(x, y, scale) {
-  ctx.fillStyle = "rgba(255,255,255,0.88)";
+function drawCloud(x, y, scale, color) {
+  ctx.fillStyle = color;
   ctx.beginPath();
   ctx.arc(x, y, 22 * scale, 0, Math.PI * 2);
   ctx.arc(x + 22 * scale, y - 8 * scale, 18 * scale, 0, Math.PI * 2);
@@ -436,20 +814,47 @@ function drawCloud(x, y, scale) {
 }
 
 function drawBackground() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const { theme } = game.level;
 
-  ctx.fillStyle = "#ffe37b";
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, theme.skyTop);
+  gradient.addColorStop(1, theme.skyBottom);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (theme.stars) {
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    for (let i = 0; i < 20; i += 1) {
+      const x = ((i * 137) % canvas.width) + 6;
+      const y = 40 + ((i * 53) % 140);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  ctx.fillStyle = theme.sun;
   ctx.beginPath();
   ctx.arc(818, 88, 38, 0, Math.PI * 2);
   ctx.fill();
 
-  drawCloud(120, 90, 1.2);
-  drawCloud(420, 120, 0.9);
-  drawCloud(690, 85, 1.1);
+  if (theme.mountain) {
+    for (let i = 0; i < 5; i += 1) {
+      const x = i * 260 - (game.cameraX * 0.12) % 260;
+      ctx.fillStyle = theme.mountain;
+      ctx.beginPath();
+      ctx.moveTo(x, canvas.height);
+      ctx.lineTo(x + 110, 210);
+      ctx.lineTo(x + 220, canvas.height);
+      ctx.fill();
+    }
+  }
+
+  drawCloud(120, 90, 1.2, theme.cloud);
+  drawCloud(420, 120, 0.9, theme.cloud);
+  drawCloud(690, 85, 1.1, theme.cloud);
 
   for (let i = 0; i < 7; i += 1) {
     const hillX = i * 240 - (game.cameraX * 0.18) % 240;
-    ctx.fillStyle = i % 2 === 0 ? "#8fd694" : "#72c27a";
+    ctx.fillStyle = i % 2 === 0 ? theme.hillA : theme.hillB;
     ctx.beginPath();
     ctx.moveTo(hillX, canvas.height);
     ctx.quadraticCurveTo(hillX + 120, 280, hillX + 240, canvas.height);
@@ -489,6 +894,21 @@ function drawCollectible(item) {
   ctx.stroke();
 }
 
+function drawProjectile(projectile) {
+  const x = projectile.x - game.cameraX;
+  const y = projectile.y;
+
+  ctx.fillStyle = "#b67332";
+  ctx.beginPath();
+  ctx.ellipse(x + 10, y + 7, 10, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#f7d48c";
+  ctx.beginPath();
+  ctx.ellipse(x + 10, y + 7, 8, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawHazards() {
   for (const spike of game.level.hazards) {
     const x = spike.x - game.cameraX;
@@ -518,6 +938,7 @@ function drawEnemy(enemy) {
 }
 
 function drawGoal() {
+  if (!game.level.goal) return;
   const { goal } = game.level;
   const x = goal.x - game.cameraX;
 
@@ -529,6 +950,137 @@ function drawGoal() {
   ctx.beginPath();
   ctx.arc(x + goal.width - 16, goal.y + goal.height / 2, 5, 0, Math.PI * 2);
   ctx.fill();
+}
+
+function drawBoss() {
+  if (!game.boss) return;
+
+  const x = game.boss.x - game.cameraX;
+  const y = game.boss.y;
+  const flashing = performance.now() < game.boss.hitFlashUntil;
+
+  ctx.save();
+  ctx.fillStyle = flashing ? "#f9a8a8" : "#7b5e57";
+  ctx.beginPath();
+  ctx.ellipse(x + 64, y + 58, 64, 50, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = flashing ? "#ffd7d7" : "#c9b29b";
+  ctx.beginPath();
+  ctx.ellipse(x + 65, y + 48, 48, 34, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#e8b1ba";
+  ctx.beginPath();
+  ctx.ellipse(x + 26, y + 18, 15, 18, -0.4, 0, Math.PI * 2);
+  ctx.ellipse(x + 104, y + 18, 15, 18, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#271d1a";
+  ctx.beginPath();
+  ctx.arc(x + 48, y + 42, 5, 0, Math.PI * 2);
+  ctx.arc(x + 84, y + 42, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#d94c4c";
+  ctx.beginPath();
+  ctx.arc(x + 66, y + 56, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#271d1a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y + 56);
+  ctx.lineTo(x - 6, y + 49);
+  ctx.moveTo(x + 22, y + 66);
+  ctx.lineTo(x - 7, y + 68);
+  ctx.moveTo(x + 112, y + 56);
+  ctx.lineTo(x + 138, y + 49);
+  ctx.moveTo(x + 110, y + 66);
+  ctx.lineTo(x + 139, y + 68);
+  ctx.stroke();
+
+  ctx.fillStyle = "#fff8ee";
+  ctx.fillRect(x + 54, y + 74, 7, 16);
+  ctx.fillRect(x + 70, y + 74, 7, 16);
+  ctx.restore();
+
+  const barX = x + 8;
+  const barY = y - 20;
+  const barWidth = 112;
+  ctx.fillStyle = "rgba(35, 20, 26, 0.55)";
+  ctx.fillRect(barX, barY, barWidth, 10);
+  ctx.fillStyle = "#f87171";
+  ctx.fillRect(barX, barY, barWidth * (game.boss.health / game.boss.maxHealth), 10);
+}
+
+function drawVictoryCutscene() {
+  if (!game.cutscene) return;
+
+  const elapsed = performance.now() - game.cutscene.startedAt;
+  const overlayAlpha = Math.min(0.78, 0.32 + elapsed / 2400);
+
+  ctx.fillStyle = `rgba(21, 18, 38, ${overlayAlpha})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (const piece of game.cutscene.confetti) {
+    ctx.fillStyle = piece.color;
+    ctx.fillRect(piece.x, piece.y, piece.size, piece.size * 0.7);
+  }
+
+  ctx.fillStyle = "#fff7ea";
+  ctx.font = "700 40px Trebuchet MS";
+  ctx.textAlign = "center";
+  ctx.fillText("Congratulations!", canvas.width / 2, 158);
+
+  ctx.font = "700 24px Trebuchet MS";
+  ctx.fillStyle = "#ffe08a";
+  ctx.fillText("You completed Doraemon Dash", canvas.width / 2, 204);
+
+  ctx.font = "600 18px Trebuchet MS";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("The Rat King is defeated and the city is safe again.", canvas.width / 2, 252);
+  ctx.fillText("Doraemon celebrates with a mountain of dorayaki.", canvas.width / 2, 282);
+
+  ctx.fillStyle = "#1296d4";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, 372, 66, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, 366, 58, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#1296d4";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, 366, 62, Math.PI * 0.1, Math.PI * 1.9);
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2 - 18, 356, 17, 0, Math.PI * 2);
+  ctx.arc(canvas.width / 2 + 18, 356, 17, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#111111";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2 - 16, 356, 4, 0, Math.PI * 2);
+  ctx.arc(canvas.width / 2 + 16, 356, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#de4040";
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, 377, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, 392, 24, 0, Math.PI);
+  ctx.stroke();
+
+  ctx.textAlign = "start";
 }
 
 function drawPlayer() {
@@ -624,6 +1176,14 @@ function drawPlayer() {
   ctx.restore();
 }
 
+function drawLevelBanner() {
+  ctx.fillStyle = "rgba(16, 28, 48, 0.16)";
+  ctx.fillRect(16, 16, 220, 44);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "700 18px Trebuchet MS";
+  ctx.fillText(`Level ${game.levelIndex + 1}: ${currentLevelTemplate().name}`, 26, 44);
+}
+
 function draw() {
   drawBackground();
   drawPlatforms();
@@ -637,26 +1197,58 @@ function draw() {
     drawEnemy(enemy);
   }
 
+  for (const projectile of game.projectiles) {
+    drawProjectile(projectile);
+  }
+
   drawGoal();
+  drawBoss();
   drawPlayer();
+  drawLevelBanner();
+
+  if (game.state === "won") {
+    drawVictoryCutscene();
+  }
 }
 
 function updateHud() {
-  scoreEl.textContent = `${game.score} / ${game.totalCollectibles}`;
+  levelEl.textContent = `${game.levelIndex + 1} / ${LEVELS.length}`;
+  scoreEl.textContent =
+    game.level.mode === "boss" ? "Auto-fire" : `${game.score} / ${game.totalCollectibles}`;
   livesEl.textContent = String(game.lives);
+  bossHealthEl.textContent = game.boss ? `${game.boss.health} / ${game.boss.maxHealth}` : "--";
 
   if (game.state === "ready") {
     statusEl.textContent = "Ready";
   } else if (game.state === "running") {
     statusEl.textContent = `Time ${Math.ceil(game.timeLeft)}s`;
   } else if (game.state === "won") {
-    statusEl.textContent = "You Win";
+    statusEl.textContent = "Victory";
   } else {
     statusEl.textContent = "Game Over";
   }
 }
 
+function updateVictoryCutscene() {
+  if (!game.cutscene) return;
+
+  for (const piece of game.cutscene.confetti) {
+    piece.y += piece.speedY;
+    piece.x += piece.drift;
+
+    if (piece.y > canvas.height + 20) {
+      piece.y = -20;
+      piece.x = 40 + Math.random() * (canvas.width - 80);
+    }
+  }
+}
+
 function update(deltaMs) {
+  if (game.state === "won") {
+    updateVictoryCutscene();
+    return;
+  }
+
   if (game.state !== "running") return;
 
   game.timeLeft -= deltaMs / 1000;
@@ -669,8 +1261,12 @@ function update(deltaMs) {
     return;
   }
 
+  const now = performance.now();
   updatePlayer();
+  autoFireProjectiles(now);
+  updateProjectiles();
   updateEnemies();
+  updateBoss(now);
   handleCollectibles();
   handleHazards();
   updateGoal();
@@ -738,6 +1334,11 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("keyup", (event) => {
   setKeyState(event.code, false);
+});
+
+playAgainBtn.addEventListener("click", () => {
+  ensureAudio();
+  restartGame();
 });
 
 touchButtons.forEach((button) => {

@@ -161,6 +161,28 @@ code {
   font-weight: 600;
 }
 
+.play-again-btn {
+  margin-top: 12px;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 22px;
+  font: inherit;
+  font-weight: 800;
+  color: #fffdf5;
+  background: linear-gradient(180deg, #ef476f, #d93b63);
+  box-shadow: 0 12px 20px rgba(217, 59, 99, 0.26);
+  cursor: pointer;
+  width: min(100%, 240px);
+}
+
+.play-again-btn[hidden] {
+  display: none;
+}
+
+.play-again-btn:active {
+  transform: translateY(2px);
+}
+
 .mobile-controls {
   display: none;
   margin-top: 14px;
@@ -264,6 +286,12 @@ code {
     padding: 12px 14px;
     border-radius: 15px;
     font-size: 0.94rem;
+  }
+
+  .play-again-btn {
+    width: 100%;
+    min-height: 58px;
+    border-radius: 18px;
   }
 
   .mobile-controls {

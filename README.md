@@ -1,6 +1,6 @@
 # Doraemon Dash
 
-A simple browser platformer inspired by classic Mario-style side scrollers, using a Doraemon-inspired robo-cat hero drawn directly in canvas.
+A simple browser platformer inspired by classic Mario-style side scrollers, using a Doraemon-inspired robo-cat hero drawn directly in canvas across 4 levels, including a boss fight finale.
 
 ## How to run locally on your MacBook
 
@@ -8,7 +8,7 @@ A simple browser platformer inspired by classic Mario-style side scrollers, usin
 2. Go to the project folder:
 
 ```bash
-cd "/Users/karmannityasarao/Documents/New project"
+cd "/Users/karmannityasarao/Documents/New project/doraemon-dash"
 ```
 
 3. Start a small local web server with Python:
@@ -34,9 +34,11 @@ http://localhost:8000
 
 ## Goal
 
-- Collect all 10 dorayaki treats
+- Clear all 4 levels
+- Collect every dorayaki in each level
 - Avoid spikes and robot mice
 - Reach the yellow door before time runs out
+- In Level 4, survive the giant rat boss while dorayaki shots fire automatically
 
 ## Notes
 
