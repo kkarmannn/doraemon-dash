@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doraemon Dash</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="hero-copy">
+        <p class="eyebrow">Browser Platformer</p>
+        <h1>Doraemon Dash</h1>
+        <p class="intro">
+          A small side-scrolling platform game with a Doraemon-inspired robo-cat hero.
+          Run, jump, collect dorayaki, and reach the yellow door.
+        </p>
+        <div class="controls">
+          <span>Move: <code>A</code> / <code>D</code> or arrow keys</span>
+          <span>Jump: <code>W</code>, <code>Up</code>, or <code>Space</code></span>
+          <span>Restart: <code>R</code></span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="hud">
+          <div class="stat">
+            <span class="label">Dorayaki</span>
+            <strong id="score">0 / 0</strong>
+          </div>
+          <div class="stat">
+            <span class="label">Lives</span>
+            <strong id="lives">3</strong>
+          </div>
+          <div class="stat">
+            <span class="label">Status</span>
+            <strong id="status">Ready</strong>
+          </div>
+        </div>
+
+        <canvas
+          id="game"
+          width="960"
+          height="540"
+          aria-label="Doraemon-inspired platform game"
+        ></canvas>
+
+        <div class="footer-note" id="message">
+          Press any movement key to begin.
+        </div>
+
+        <div class="mobile-controls" aria-label="Touch controls">
+          <button class="control-btn control-btn-wide" type="button" data-touch="left" aria-label="Move left">
+            <span>&larr;</span>
+          </button>
+          <button class="control-btn control-btn-jump" type="button" data-touch="jump" aria-label="Jump">
+            <span>Jump</span>
+          </button>
+          <button class="control-btn control-btn-wide" type="button" data-touch="right" aria-label="Move right">
+            <span>&rarr;</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
